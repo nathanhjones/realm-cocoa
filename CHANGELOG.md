@@ -9,6 +9,8 @@ x.x.x Release notes (yyyy-MM-dd)
 
 * Added method `-linkingObjectsOfClass:forProperty:` to RLMObject to expose inverse
   relashinships/backlinks.
+* Add `-[RLMRealm saveCopyToPath:]` to save a compacted copy of the Realm
+  another file.
 
 ### Bugfixes
 
