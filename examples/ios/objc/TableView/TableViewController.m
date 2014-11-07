@@ -23,6 +23,7 @@
 @interface DemoObject : RLMObject
 @property NSString *title;
 @property NSDate   *date;
+@property NSString *sectionTitle;
 @end
 
 @implementation DemoObject
@@ -34,7 +35,7 @@ static NSString * const kTableName = @"table";
 
 @interface TableViewController ()
 
-@property (nonatomic, strong) RLMResults *array;
+@property (nonatomic, strong) NSArray *sectionTitles;
 @property (nonatomic, strong) RLMNotificationToken *notification;
 
 @end
@@ -46,14 +47,16 @@ static NSString * const kTableName = @"table";
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+    // Section Titles
+    self.sectionTitles = @[@"A", @"B", @"C"];
     [self setupUI];
 
     // Set realm notification block
     __weak typeof(self) weakSelf = self;
     self.notification = [RLMRealm.defaultRealm addNotificationBlock:^(NSString *note, RLMRealm *realm) {
-        [weakSelf reloadData];
+        [weakSelf.tableView reloadData];
     }];
-    [self reloadData];
+    [self.tableView reloadData];
 }
 
 #pragma mark - UI
@@ -74,9 +77,19 @@ static NSString * const kTableName = @"table";
 
 #pragma mark - UITableViewDataSource
 
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
+{
+    return self.sectionTitles.count;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
+{
+    return self.sectionTitles[section];
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    return self.array.count;
+    return [self objectsInSection:section].count;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -88,7 +101,7 @@ static NSString * const kTableName = @"table";
                                       reuseIdentifier:kCellID];
     }
 
-    DemoObject *object = self.array[indexPath.row];
+    DemoObject *object = [self objectsInSection:indexPath.section][indexPath.row];
     cell.textLabel.text = object.title;
     cell.detailTextLabel.text = object.date.description;
 
@@ -101,18 +114,12 @@ static NSString * const kTableName = @"table";
     if (editingStyle == UITableViewCellEditingStyleDelete) {
         RLMRealm *realm = RLMRealm.defaultRealm;
         [realm beginWriteTransaction];
-        [realm deleteObject:self.array[indexPath.row]];
+        [realm deleteObject:[self objectsInSection:indexPath.section][indexPath.row]];
         [realm commitWriteTransaction];
     }
 }
 
 #pragma mark - Actions
-
-- (void)reloadData
-{
-    self.array = [[DemoObject allObjects] sortedResultsUsingProperty:@"date" ascending:YES];
-    [self.tableView reloadData];
-}
 
 - (void)backgroundAdd
 {
@@ -125,7 +132,8 @@ static NSString * const kTableName = @"table";
         for (NSInteger index = 0; index < 5; index++) {
             // Add row via dictionary. Order is ignored.
             [DemoObject createInRealm:realm withObject:@{@"title": [self randomString],
-                                                         @"date": [self randomDate]}];
+                                                         @"date": [self randomDate],
+                                                         @"sectionTitle": [self randomSectionTitle]}];
         }
         [realm commitWriteTransaction];
     });
@@ -133,13 +141,18 @@ static NSString * const kTableName = @"table";
 
 - (void)add
 {
-    RLMRealm *realm = RLMRealm.defaultRealm;
-    [realm beginWriteTransaction];
-    [DemoObject createInRealm:realm withObject:@[[self randomString], [self randomDate]]];
-    [realm commitWriteTransaction];
+    [[RLMRealm defaultRealm] transactionWithBlock:^{
+        [DemoObject createInDefaultRealmWithObject:@[[self randomString], [self randomDate], [self randomSectionTitle]]];
+    }];
 }
 
 #pragma - Helpers
+
+- (RLMResults *)objectsInSection:(NSUInteger)section
+{
+    RLMResults *unsortedObjects = [DemoObject objectsWhere:@"sectionTitle == %@", self.sectionTitles[section]];
+    return [unsortedObjects sortedResultsUsingProperty:@"date" ascending:YES];
+}
 
 - (NSString *)randomString
 {
@@ -149,6 +162,11 @@ static NSString * const kTableName = @"table";
 - (NSDate *)randomDate
 {
     return [NSDate dateWithTimeIntervalSince1970:arc4random()];
+}
+
+- (NSString *)randomSectionTitle
+{
+    return self.sectionTitles[arc4random() % self.sectionTitles.count];
 }
 
 @end
